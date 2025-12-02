@@ -1,0 +1,68 @@
+---
+title: "Stats 101C Final"
+output: html_document
+date: "2025-11-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library("leaps")
+library("glmnet")
+
+m1 <- regsubsets(y_passXtremeDurability~.-ID, data=aluminum_coldRoll_train, nvmax=30)
+summary(m1)
+summary(m1)$bic
+
+
+m2 <- glm(y_passXtremeDurability~.-ID, data=aluminum_coldRoll_train)
+
+library("caret")
+
+train_control <- trainControl(method = "cv", number=10)
+
+m3 <- train(y_passXtremeDurability~.-ID-clearPassNdx-secondPassRollPressure, data=aluminum_coldRoll_train, trControl=train_control,method="glm",family=binomial())
+
+m4 <- glm(y_passXtremeDurability~factor(contourDefNdx)+firstPassRollPressure+blockSource+topEdgeMicroChipping+rollTemp+machineRestart, data=aluminum_coldRoll_train)
+
+not_m <- glm(clearPassNdx~factor(contourDefNdx)+firstPassRollPressure+blockSource+topEdgeMicroChipping+rollTemp+machineRestart, data=aluminum_coldRoll_testNoY)
+  
+best_lambda <- cv.glmnet(model.matrix(m2),aluminum_coldRoll_train$y_passXtremeDurability,alpha=0,nfolds=10)$lambda.min
+
+m5 <- glmnet(model.matrix(m4),aluminum_coldRoll_train$y_passXtremeDurability,alpha=1,lambda=best_lambda)
+
+
+pred1 <- predict(m4, newdata=aluminum_coldRoll_testNoY,type="response")
+summary(pred1)
+
+pre1=ifelse(pred1 > 0.5, 1, 0)
+
+Test_Input <- model.matrix(clearPassNdx~factor(contourDefNdx)+firstPassRollPressure+blockSource+topEdgeMicroChipping+rollTemp+machineRestart, data=aluminum_coldRoll_testNoY)
+
+pred1 <- predict(m5, newx=model.matrix(Test_Input),type="response")
+summary(pred1)
+library("lmtest")
+lrtest(m4)
+plotCalib
+
+mean(aluminum_coldRoll_train$y_passXtremeDurability)
+
+summary(aluminum_coldRoll_train$firstPassRollPressure)
+
+head(pred1,100)
+
+
+summary(Team20_CatBoostLightGBMAlpha095_Nov27$y_passXtremeDurability)
+```
+
+```{r}
+output <- data.frame(aluminum_coldRoll_testNoY$ID,pred1)
+names(output) <- c("ID", "y_passXtremeDurability")
+write.csv(output,row.names=FALSE, "output.csv")
+```
+
+
+
